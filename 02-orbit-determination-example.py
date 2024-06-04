@@ -1,3 +1,5 @@
+# JMF simulation ends at date of TLE => use *historical* TLE, *not* latest TLE
+
 sat_list = {
     'envisat': {
         'norad_id': 27386,  # For Space-Track TLE queries
@@ -56,7 +58,7 @@ az_sigma = float(np.deg2rad(0.01))
 el_sigma = float(np.deg2rad(0.01))
 
 from datetime import datetime
-odDate = datetime(2024, 5, 20) # Beginning of the orbit determination
+odDate = datetime(2023, 6, 8) # Beginning of the orbit determination -> JMF: be consistent with downloaded TLE
 collectionDuration = 2 # day
 from datetime import timedelta
 startCollectionDate = odDate + timedelta(days=-collectionDuration)
@@ -76,7 +78,7 @@ import orekit
 orekit.initVM()
 
 from orekit.pyhelpers import setup_orekit_curdir
-orekit_data_dir = 'orekit-data'
+orekit_data_dir = 'orekit-data-master'
 setup_orekit_curdir(orekit_data_dir)
 
 from org.orekit.utils import Constants as orekit_constants
@@ -154,9 +156,11 @@ print(station_df)
 # rawTle = st.tle(norad_cat_id=sat_list[sc_name]['norad_id'], epoch='<{}'.format(odDate), orderby='epoch desc', limit=1, format='tle')
 # tleLine1 = rawTle.split('\n')[0]
 # tleLine2 = rawTle.split('\n')[1]
-tleLine1 ="1 22195U 92070B   24153.01560229 -.00000009  00000+0  00000+0 0  9995"
-tleLine2 ="2 22195  52.6797  18.2088 0137585 220.6419 290.8914  6.47293385747319"
-# JMF fetched from https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=tle
+#tleLine1 ="1 22195U 92070B   23153.01560229 -.00000009  00000+0  00000+0 0  9995"  # JMF dummy date 2023 to stop the simulation early
+#tleLine2 ="2 22195  52.6797  18.2088 0137585 220.6419 290.8914  6.47293385747319"  #     -> orbit model from odDate to tle date
+tleLine1 ="1 22195U 92070B   23166.70909887 -.00000009  00000-0  00000-0 0  9993"
+tleLine2 ="2 22195  52.6449 240.2410 0138828  67.4256 295.6508  6.47294014724379"
+#JMF from https://www.satcat.com/sats/22195 (15 Jun 2023)
 
 print(tleLine1)
 print(tleLine2)
@@ -299,8 +303,9 @@ estimatedPropagatorArray = estimator.estimate()
 dt = 300.0
 date_start = datetime_to_absolutedate(startCollectionDate)
 date_start = date_start.shiftedBy(-86400.0)
-date_end = datetime_to_absolutedate(odDate)
-date_end = date_end.shiftedBy(86400.0) # Stopping 1 day after OD date
+# date_end = datetime_to_absolutedate(odDate) JMF 
+# date_end = date_end.shiftedBy(86400.0) # Stopping 1 day after OD date JMF
+date_end = date_start.shiftedBy(4*86400.0) # Stopping 1 day after OD date JMF : 4 days
 
 # First propagating in ephemeris mode
 estimatedPropagator = estimatedPropagatorArray[0]
@@ -329,6 +334,7 @@ covMat_eci_java = estimator.getPhysicalCovariances(1.0e-10)
 #orekit.JavaError: <super: <class 'JavaError'>, <JavaError object>>
 #    Java stacktrace:
 #org.orekit.errors.OrekitException: matrix is singular
+# JMF : missing observables
 
 # Converting matrix to LVLH frame
 # Getting an inertial frame aligned with the LVLH frame at this instant
@@ -515,3 +521,53 @@ deltaPV_cpf_lvlh_df = pd.DataFrame.from_dict(deltaPV_cpf_lvlh_dict,
                                              orient='index')
 
 
+#output:
+#
+#$ python3 02-orbit-determination-example.py 
+#        lat_deg     lon_deg        alt_m                                      GroundStation
+#1824  50.363134   30.495889   211.735985  org.orekit.estimation.measurements.GroundStati...
+#1831  49.917575   23.954423   359.744840  org.orekit.estimation.measurements.GroundStati...
+#1863  38.685740   66.943098  2713.972551  org.orekit.estimation.measurements.GroundStati...
+#1864  38.684896   66.943095  2713.612400  org.orekit.estimation.measurements.GroundStati...
+#1868  50.694601  136.743837   269.556377  org.orekit.estimation.measurements.GroundStati...
+#...         ...         ...          ...                                                ...
+#7841  52.383015   13.061439   127.338569  org.orekit.estimation.measurements.GroundStati...
+#7845  43.754636    6.921579  1323.338301  org.orekit.estimation.measurements.GroundStati...
+#7865  38.499195  -77.371110    32.021791  org.orekit.estimation.measurements.GroundStati...
+#7941  40.648675   16.704617   536.982724  org.orekit.estimation.measurements.GroundStati...
+#8834  49.144421   12.878015   665.382135  org.orekit.estimation.measurements.GroundStati...
+#
+#[67 rows x 4 columns]
+#1 22195U 92070B   23166.70909887 -.00000009  00000-0  00000-0 0  9993
+#2 22195  52.6449 240.2410 0138828  67.4256 295.6508  6.47294014724379
+#               end_data_date errors        incoming_date                           incoming_filename  ...   station status version wavelength
+#2845295  2023-06-06 04:17:29         2023-11-07 10:46:54         7840_lageos2_crd_20230606_04_01.npt  ...  78403501  valid      01    532.080
+#2845296  2023-06-06 08:20:07         2023-11-07 10:46:56         7840_lageos2_crd_20230606_07_01.npt  ...  78403501  valid      01    532.080
+#2828898  2023-06-06 14:44:12         2023-06-06 15:06:33         7821_lageos2_crd_20230606_14_00.npt  ...  78212801  valid      00    532.000
+#2828974  2023-06-06 14:47:15         2023-06-06 20:43:51         7396_lageos2_crd_20230606_14_00.npt  ...  73964701  valid      00    532.000
+#2828942  2023-06-06 18:48:32         2023-06-06 19:22:58         7821_lageos2_crd_20230606_18_00.npt  ...  78212801  valid      00    532.000
+#2828975  2023-06-06 18:39:06         2023-06-06 20:45:33         7396_lageos2_crd_20230606_18_00.npt  ...  73964701  valid      00    532.000
+#2829159  2023-06-06 18:31:32         2023-06-07 20:39:10       1890_lageos2_crd_20230606_1819_00.npt  ...  18900901  valid      00    532.000
+#2829034  2023-06-07 01:53:17         2023-06-07 03:34:49  8834_lageos2_crd_20230607_0148_00.det7.npt  ...  88341001  valid      00   1064.000
+#2829035  2023-06-07 02:04:59         2023-06-07 03:34:48  8834_lageos2_crd_20230607_0202_00.det7.npt  ...  88341001  valid      00   1064.000
+#2829036  2023-06-07 02:25:46         2023-06-07 03:34:46  8834_lageos2_crd_20230607_0223_00.det7.npt  ...  88341001  valid      00   1064.000
+#2829074  2023-06-07 05:56:01         2023-06-07 09:33:55  8834_lageos2_crd_20230607_0551_00.det7.npt  ...  88341001  valid      00   1064.000
+#2829075  2023-06-07 06:24:17         2023-06-07 09:33:51  8834_lageos2_crd_20230607_0621_00.det7.npt  ...  88341001  valid      00   1064.000
+#2845297  2023-06-07 10:24:41         2023-11-07 10:46:56         7840_lageos2_crd_20230607_09_01.npt  ...  78403501  valid      01    532.080
+#2829231  2023-06-07 20:27:26         2023-06-08 05:38:04       1889_lageos2_crd_20230607_2009_00.npt  ...  18899901  valid      00    532.000
+#
+#[14 rows x 11 columns]
+#                                    station-id         range  wavelength_microm  pressure_mbar  temperature_K  humidity
+#2023-06-06T04:15:55.84851870000057Z       7840  7.313215e+06            0.53208    1018.901004     281.600000  0.960000
+#2023-06-06T04:16:44.16199469999992Z       7840  7.429026e+06            0.53208    1018.893016     281.600000  0.960000
+#2023-06-06T07:45:41.67338469999959Z       7840  6.632704e+06            0.53208    1018.680940     287.461881  0.733812
+#2023-06-06T07:47:01.26051970000117Z       7840  6.484162e+06            0.53208    1018.691906     287.483813  0.731619
+#2023-06-06T07:49:01.54969469999924Z       7840  6.280238e+06            0.53208    1018.683039     287.500000  0.726608
+#...                                        ...           ...                ...            ...            ...       ...
+#2023-06-07T10:24:26.35970310000266Z       7840  7.629123e+06            0.53208    1017.422583     289.758058  0.730000
+#2023-06-07T20:10:14.10909815999912Z       1889  7.303253e+06            0.53200     892.980000     283.850000  0.970000
+#2023-06-07T20:19:28.31912308000028Z       1889  6.924117e+06            0.53200     892.980000     283.850000  0.970000
+#2023-06-07T20:20:57.68387671999517Z       1889  6.921368e+06            0.53200     892.980000     283.850000  0.970000
+#2023-06-07T20:27:09.33502076999866Z       1889  7.090397e+06            0.53200     892.980000     283.850000  0.970000
+#
+#[76 rows x 6 columns]

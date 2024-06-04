@@ -42,7 +42,7 @@ import orekit
 orekit.initVM()
 
 from orekit.pyhelpers import setup_orekit_curdir
-orekit_data_dir = 'orekit-data'
+orekit_data_dir = 'orekit-data-master' # unzipped from orekit-data.zip
 setup_orekit_curdir(orekit_data_dir)
 
 from org.orekit.frames import FramesFactory, ITRFVersion
@@ -122,20 +122,19 @@ propagator_builder.addForceModel(sun_3dbodyattraction)
 from org.orekit.forces.radiation import IsotropicRadiationSingleCoefficient
 isotropic_radiation_single_coeff = IsotropicRadiationSingleCoefficient(sc_cross_section, cr_radiation_pressure);
 from org.orekit.forces.radiation import SolarRadiationPressure
-# JMF solar_radiation_pressure = SolarRadiationPressure(sun, wgs84_ellipsoid.getEquatorialRadius(), isotropic_radiation_single_coeff)
-# JMF propagator_builder.addForceModel(solar_radiation_pressure)
+solar_radiation_pressure = SolarRadiationPressure(sun, wgs84_ellipsoid, isotropic_radiation_single_coeff)
+propagator_builder.addForceModel(solar_radiation_pressure)
 
 # Atmospheric drag
 # from org.orekit.forces.drag.atmosphere.data import MarshallSolarActivityFutureEstimation JMF error
-from org.orekit.models.earth.atmosphere.data import MarshallSolarActivityFutureEstimation
-msafe = MarshallSolarActivityFutureEstimation(
-    '(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\p{Digit}\p{Digit}\p{Digit}\p{Digit}F10\.(?:txt|TXT)',
-    MarshallSolarActivityFutureEstimation.StrengthLevel.AVERAGE)
+from org.orekit.models.earth.atmosphere.data import MarshallSolarActivityFutureEstimation 
+# msafe = MarshallSolarActivityFutureEstimation('(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\p{Digit}\p{Digit}\p{Digit}\p{Digit}F10\.(?:txt|TXT)', MarshallSolarActivityFutureEstimation.StrengthLevel.AVERAGE) JMF error
+msafe = MarshallSolarActivityFutureEstimation(MarshallSolarActivityFutureEstimation.DEFAULT_SUPPORTED_NAMES, MarshallSolarActivityFutureEstimation.StrengthLevel.AVERAGE)
 from org.orekit.data import DataProvidersManager
-DM = DataProvidersManager.getInstance()
-DM.feed(msafe.getSupportedNames(), msafe) # Feeding the F10.7 bulletins to Orekit's data manager
+#DM = DataProvidersManager.getProviders() # DataProvidersManager.getInstance() XXX JMF
+#DM.feed(msafe.getSupportedNames(), msafe) # Feeding the F10.7 bulletins to Orekit's data manager JMF
 
-from org.orekit.forces.drag.atmosphere import NRLMSISE00
+from org.orekit.models.earth.atmosphere import NRLMSISE00 # change JMF
 atmosphere = NRLMSISE00(msafe, sun, wgs84_ellipsoid)
 from org.orekit.forces.drag import IsotropicDrag
 isotropic_drag = IsotropicDrag(sc_cross_section, cd_drag_coeff)
@@ -148,9 +147,12 @@ propagator = propagator_builder.buildPropagator([a, e, i, pa, raan, ma])
 from org.orekit.propagation import SpacecraftState
 initial_state = SpacecraftState(keplerian_orbit, sc_mass)
 propagator.resetInitialState(initial_state)
-propagator.setEphemerisMode()
+# propagator.setEphemerisMode() # JMF obsolete
 date_end_orekit = date_start_orekit.shiftedBy(fitting_duration_d * 86400.0)
-state_end = propagator.propagate(date_end_orekit)
+# state_end = propagator.propagate(date_end_orekit) JMF obsolete
+generator=propagator.getEphemerisGenerator();
+propagator.propagate(date_start_orekit, date_end_orekit);
+state_end=generator.getGeneratedEphemeris();  # JMF problem
 
 from java.util import ArrayList
 states_list = ArrayList()
